@@ -1,0 +1,12 @@
+FOUND: 'kmalloc_caches' @ file 0x163EFD2 (VA 0xFFFFFF939D2BEFD2)
+NOT FOUND: 'selinux_blob_sizes'
+NOT FOUND: 'security_hook_heads'
+NOT FOUND: 'ashmem_misc_fops'
+NOT FOUND: 'generic_pipe_buf_ops'
+NOT FOUND: 'anon_pipe_buf_ops'
+NOT FOUND: 'configfs_read_iter'
+NOT FOUND: 'configfs_bin_write_iter'
+NOT FOUND: 'copy_splice_read'
+FOUND: 'noop_llseek' @ file 0x163F98A (VA 0xFFFFFF939D2BF98A)
+FOUND: 'generic_pipe_buf_confirm' @ file 0x163FF59 (VA 0xFFFFFF939D2BFF59)
+FOUND: 'generic_pipe_buf_release' @ file 0x163FF72 (VA 0xFFFFFF939D2BFF72)
