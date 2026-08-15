@@ -58,14 +58,14 @@
 | 符号 | 地址 | 来源 |
 |------|------|------|
 | KIMAGE_TEXT_BASE | 0xffffff939bc80000 | /proc/kallsyms |
-| commit_creds | 0xffffff939bce41e0 | /proc/kallsyms |
-| prepare_kernel_cred | 0xffffff939bce4578 | /proc/kallsyms |
-| selinux_enforcing | 0xffffff939dd00b28 | enforcing_setup 分析 |
-| INIT_TASK | 0xffffff939d8dc058 | swapper/0 字符串位置推断 |
-| INIT_CRED | 0xffffff939dae3850 | prepare_kernel_cred 数据引用 |
-| ENTRY_TASK | 0xffffff939d404028 | __switch_to 引用 (per-CPU) |
-| PER_CPU_OFFSET | 0xffffff939d404028 | per_cpu 区域基址 |
-| ROOT_TASK_GROUP | 0xffffff939d8ce1f0 | fork_init 引用 |
+| commit_creds | 0xffffff939bce41e0 | /proc/kallsyms ✅（2026-08-16 复核：文件 0x641e0 反汇编一致） |
+| prepare_kernel_cred | 0xffffff939bce4578 | /proc/kallsyms ❌ 真值为 0xffffff939bce4604（文件 0x64604，get_cred(&init_cred)+memcpy 0xa8） |
+| selinux_enforcing | 0xffffff939dd00b28 | enforcing_setup 分析 ⚠️ 超出镜像文件（.bss 区），无法从镜像证实 |
+| INIT_TASK | 0xffffff939d8dc058 | swapper/0 字符串位置推断 ❌ 2026-08-16 复核：该处全零、非 init_task；init_task 不在镜像中，运行时 kallsyms 解析 |
+| INIT_CRED | 0xffffff939dae3850 | prepare_kernel_cred 数据引用 ❌ 真值 0xffffff939d8e9158（文件 0x1c69158） |
+| ENTRY_TASK | 0xffffff939d404028 | __switch_to 引用 (per-CPU) ⚠️ 未复核 |
+| PER_CPU_OFFSET | 0xffffff939d404028 | per_cpu 区域基址 ⚠️ 未复核 |
+| ROOT_TASK_GROUP | 0xffffff939d8ce1f0 | fork_init 引用 ⚠️ 内容与 task_group 布局不符，未证实 |
 
 ### 内存布局
 
