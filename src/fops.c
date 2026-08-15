@@ -195,6 +195,8 @@ int refresh_fake_fops_text(int fd) {
     size_t off;
     uint64_t value;
   } slots[] = {
+    {FOPS_READ_OFF, get_configfs_read_addr()},
+    {FOPS_WRITE_OFF, get_configfs_write_addr()},
     {FOPS_READ_ITER_OFF, get_configfs_read_iter_addr()},
     {FOPS_WRITE_ITER_OFF, get_configfs_bin_write_iter_addr()},
     {FOPS_IOCTL_OFF, text_addr(KIMAGE_TEXT_BASE + ASHMEM_IOCTL_OFF)},

