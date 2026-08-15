@@ -347,7 +347,12 @@ uint64_t get_security_hook_heads_addr(void);
 uint64_t get_ashmem_misc_fops_addr(void);
 uint64_t get_configfs_read_iter_addr(void);
 uint64_t get_configfs_bin_write_iter_addr(void);
+uint64_t get_configfs_read_addr(void);
+uint64_t get_configfs_write_addr(void);
 uint64_t get_copy_splice_read_addr(void);
+/* Runtime-resolved init_task (kallsyms) + direct-map alias conversion */
+uint64_t get_init_task_addr(void);
+uintptr_t rt_data_alias(uintptr_t rt_va);
 uint64_t get_noop_llseek_addr(void);
 void read_first_line(const char *path, char *buf, size_t len);
 void log_startup_context(void);

